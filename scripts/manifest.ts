@@ -17,14 +17,14 @@ interface ObsidianPluginManifest {
 
 export async function generateObsidianPluginManifest() {
   const manifest = {
-    id: 'obsidian-plugin-template',
-    name: 'Obsidian Template Plugin',
+    id: 'obsidian-vector-search',
+    name: 'Vector Search',
     version: packageJSON.version,
     minAppVersion: '1.4.0',
-    description: 'Obsidian Template Plugin',
-    author: 'Nolebase',
-    authorUrl: 'https://github.com/nolebase',
-    isDesktopOnly: false,
+    description: 'Local semantic vector search for your Obsidian vault.',
+    author: 'Anton Lu',
+    authorUrl: 'https://github.com/antolu',
+    isDesktopOnly: true,
   } satisfies ObsidianPluginManifest
 
   await writeFile(join(cwd(), 'dist', 'manifest.json'), JSON.stringify(manifest, null, 2))

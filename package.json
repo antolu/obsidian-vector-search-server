@@ -1,18 +1,18 @@
 {
-  "name": "obsidian-plugin-template",
+  "name": "obsidian-vector-search-server",
   "type": "module",
   "version": "0.1.0",
   "packageManager": "pnpm@10.18.1",
-  "description": "Obsidian Template Plugin",
+  "description": "Hybrid vector search for Obsidian",
   "author": {
-    "name": "Nólëbase",
-    "email": "nolebase@ayaka.moe",
-    "url": "https://github.com/nolebase"
+    "name": "Anton Lu",
+    "email": "anton96lu@gmail.com",
+    "url": "https://github.com/antolu"
   },
   "license": "MIT",
   "keywords": [
-    "nolebase",
-    "nolebase-integration",
+    "vector-search",
+    "ai",
     "obsidian",
     "obsidian-plugin"
   ],
@@ -35,6 +35,7 @@
     "builtin-modules": "^5.0.0",
     "eslint": "^9.37.0",
     "obsidian": "^1.10.0",
+    "ollama": "^0.6.3",
     "taze": "^19.7.0",
     "typescript": "^5.9.3",
     "unbuild": "^3.6.1"

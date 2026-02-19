@@ -32,6 +32,7 @@ export default defineBuildConfig({
     ...builtins,
   ],
   rollup: {
+    emitCJS: true,
     esbuild: {
       format: 'cjs',
     },
@@ -41,10 +42,7 @@ export default defineBuildConfig({
       sourcemap: 'inline',
       entryFileNames: 'main.js',
     },
-    // required for unocss, ofetch, etc.
-    // otherwise unbuild will detect them as external
-    // dependencies that are inline implicitly external
-    // by esbuild
+    // Ensure all dependencies are inlined
     inlineDependencies: true,
   },
   hooks: {
