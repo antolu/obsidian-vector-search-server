@@ -60,8 +60,9 @@ export class HttpSearchServer {
               res.end()
             }
           } catch (e) {
+            const error = e instanceof Error ? e.message : String(e)
             res.writeHead(500, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ error: e.message }))
+            res.end(JSON.stringify({ error }))
           }
         })
       } else {
