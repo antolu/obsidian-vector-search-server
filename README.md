@@ -1,159 +1,73 @@
-# Obsidian Template Plugin
+# Vector Search for Obsidian
 
-> [!NOTE]
-> This is one of the plugins of the collections of plugins called [Nólëbase Integrations](https://github.com/nolebase/integrations). You can explore the other plugins in the collection in [the official documentation site of Nólëbase Integrations](https://nolebase-integrations.ayaka.io).
-
----
-
-## ⚠️ To you, the plugin developer.
-
-This is a template plugin for you to start developing your own Obsidian plugin. It is a good starting point for you to develop your own plugin. You can clone this repository and start developing your own plugin.
-
-We use the most advanced technologies to develop this plugin, including:
-
-- [TypeScript](https://www.typescriptlang.org/)
-- [unbuild](https://github.com/unjs/unbuild)
-- [eslint](https://eslint.org/)
-
-So everything is configured for you to start developing your own plugin, immediately.
-
-## ⚠️ Before publishing
-
-1. Replace all the `obsidian-plugin-template` with the name of your plugin:
-   1. In the `manifest.json` file.
-   2. In the `package.json` file.
-   3. In the `README.md` file.
-2. Replace all the `Obsidian Template Plugin` with the name of your plugin:
-   1. In the `manifest.json` file.
-   2. In the `package.json` file.
-   3. In the `README.md` file.
-3. Fill in a URL to your repository. You can replace with `https://github.com/nolebase/obsidian-plugin-template`
-4. Fill in the Why, Features, What can you do with it, Demos, How to install, TODOs, feel free to remove the sections that are not needed.
-5. Replace the name `SomeViewPlugin` and `SomePlugin` with your own plugin name.
-
-## ⚠️ How to publish?
-
-1. Modify the version in the `manifest.json` file.
-2. Modify the version in the `package.json` file.
-3. Push the changes to the repository.
-4. Go to the [Release] page of the repository.
-5. Create a new release with the tag name as the version number.
-6. Sit back and relax, the plugin will be published with CI/CD pipelines automatically.
-
-## 🤔 Why
-
-Introduce your plugin! Explain why you made it, why would users choose yours!
+A local semantic search engine for your Obsidian vault. This plugin embeds your notes using [Ollama](https://ollama.com/) and provides a local HTTP API for performing hybrid keyword and vector searches.
 
 ## 🎨 Features
 
-- 📦 Out of the box support.
-- 🚀 Blazingly fast.
-- 💡 You define it.
-
-## 💡 What can you do with it
-
-- Help users to imagine what they can do, show your imagination.
-
-## 📺 Demos
-
-> Show me what you can do
-
-### How it looks like
-
-Perhaps a GIF?
+- **Semantic Search**: Find notes by meaning, not just exact keywords.
+- **Hybrid Support**: Easily integrate with keyword-based search for high precision.
+- **Local-First**: All embeddings are generated locally via Ollama and stored in your vault.
+- **Disk Persistence**: Your index is saved to `.obsidian/plugins/obsidian-vector-search/index.json` and stays between restarts.
+- **Incremental Indexing**: Automatically updates your index as you add, modify, or delete notes.
+- **HTTP API**: Built-in server to allow external tools (like [dragonglass](https://github.com/antolu/dragonglass)) to search your vault.
 
 ## 😎 How to install
 
-> [!WARNING]
-> Currently Obsidian Template Plugin is in alpha stage, it wasn't guaranteed to work properly and keep the compatibility with the future versions of itself.
->
-> But it is encouraged to try it out and give feedbacks. If you find and bugs or have any suggestions, please feel free to open an issue on [GitHub](https://github.com/nolebase/obsidian-plugin-template/issues).
-
-Currently, it is a bit hard to install the plugin for now before it is published to the official Obsidian plugin store. Manual downloading and installation is required.
-
-### Install with beta testing helper [BRAT](https://tfthacker.com/brat-quick-guide) plugin
-
-1. Install the [BRAT](https://tfthacker.com/brat-quick-guide) plugin right from the official Obsidian plugin store.
-2. Enable the BRAT plugin in the community plugins settings menu.
-3. Open Command palette to choose `BRAT: Plugins: Add a beta plugin for testing`.
-4. Copy and paste the following link to the first field of the new prompted dialog:
-
-```txt
-https://github.com/nolebase/obsidian-plugin-template
-```
-
-5. Find the needed released version on [Release page of Obsidian UnoCSS Plugin](https://github.com/nolebase/obsidian-plugin-template/releases), for example, fill in `0.1.0`.
-6. Enable the "Obsidian Template Plugin" plugin from the `Installed plugins` list.
-
 ### Install manually
 
-1. Navigate to the [Release page of Obsidian Template Plugin](https://github.com/nolebase/obsidian-plugin-template/releases)
-2. Find the [latest version of the plugin](https://github.com/nolebase/obsidian-plugin-template/releases/latest).
-3. Download the `main.js` file and `manifest.json` file.
-4. Open up the `.obsidian/plugins` directory of your Obsidian vault.
-5. If no `.obsidian/plugins` directory exists, create one.
-6. Create a new directory named `obsidian-plugin-template` inside the `.obsidian/plugins` directory.
-7. Move `main.js` file and `manifest.json` file into the `obsidian-plugin-template` directory.
+1. Clone or download this repository.
+2. Run `pnpm install` and `pnpm run build`.
+3. Create a directory named `obsidian-vector-search` inside your vault's `.obsidian/plugins/` folder.
+4. Copy `main.js`, `manifest.json`, and `styles.css` (if any) into that folder.
+5. Enable the plugin in Obsidian settings.
 
-The directory structure should look like this after these steps:
+## ⚙️ Configuration
 
-```shell
-❯ tree
-.
-├── main.js
-├── manifest.json
+1. **Ollama URL**: The address of your Ollama server (default: `http://localhost:11434`).
+2. **Embedding Model**: Choose a model installed in Ollama (e.g., `nomic-embed-text`).
+3. **Server Port**: Port for the local search API (default: `51362`).
+4. **Min Characters**: Minimum length for a note to be indexed.
+
+## 🚀 HTTP API
+
+The plugin starts a local server on the configured port.
+
+### `POST /embed`
+Generates an embedding for the provided text.
+```json
+{ "text": "Hello world" }
 ```
 
-8. Enable the "Obsidian Template Plugin" plugin from the "Installed plugins" list.
+### `POST /search/text`
+Performs a semantic search for the given query.
+```json
+{
+  "text": "milano to ancona",
+  "top_n": 5,
+  "allowlist": ["Travel/Italy.md", "Notes/Trip.md"]
+}
+```
 
-## ⏳ TODOs
-
-- [ ] Anything on the roadmap?
+### `POST /search/vector`
+Performs a semantic search using a pre-computed vector.
+```json
+{
+  "vector": [1.2, -0.5, ...],
+  "top_n": 10
+}
+```
 
 ## 💻 How to develop
 
-1. As [Build a plugin - Developer Documentation](https://docs.obsidian.md/Plugins/Getting+started/Build+a+plugin) has suggested, create a separate vault for development.
-2. (Optional) Install the hot-reload plugin: [pjeby/hot-reload](https://github.com/pjeby/hot-reload).
-3. Create a `.obsidian/plugins` directory in the vault root.
-4. Clone this repository into the `.obsidian/plugins` directory.
-5. Install dependencies
+1. Clone into your vault's plugin directory.
+2. `pnpm install`
+3. `pnpm run dev` (starts a dev build)
 
-```shell
-pnpm install
-```
+## ⌚ TODOs
 
-If you use [`@antfu/ni`](https://github.com/antfu/ni), you can also use the following command:
+- [ ] Support for multiple vault indexing.
+- [ ] UI for searching directly within Obsidian.
+- [ ] Support for local LLM reranking.
 
-```shell
-ni
-```
-
-6. Build the plugin for development
-
-```shell
-pnpm run build
-```
-
-If you use [`@antfu/ni`](https://github.com/antfu/ni), you can also use the following command:
-
-```shell
-nr build
-```
-
-7. Reload Obsidian to see the changes. (If you use the hot-reload plugin, you don't need to reload Obsidian manually.)
-
-> Reloading can be called from the command palette with `Reload app without saving` command.
-
-## 🔨 How to build
-
-```shell
-pnpm run build
-```
-
-If you use [`@antfu/ni`](https://github.com/antfu/ni), you can also use the following command:
-
-```shell
-nr build
-```
-
-### Written with ♥
+---
+Written with ♥ for local-first knowledge management.
