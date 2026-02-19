@@ -1,0 +1,17 @@
+version: "0.2"
+ignorePaths: []
+dictionaryDefinitions: []
+dictionaries: []
+words:
+  - antfu
+  - codemirror
+  - collab
+  - Errorable
+  - lezer
+  - nolebase
+  - Nólëbase
+  - ofetch
+  - unocss
+  - vueuse
+ignoreWords: []
+import: []
