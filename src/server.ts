@@ -1,19 +1,125 @@
 import type { NoteIndex } from './index'
 
+import { createHash } from 'crypto'
 import { createServer } from 'http'
 
 import { embedText } from './ollama'
+
+interface NoteSnapshot {
+  path: string
+  content: string
+  mtime: number
+}
+
+interface ServerNoteAccess {
+  readNote: (path: string) => Promise<NoteSnapshot | null>
+  writeNote: (path: string, content: string) => Promise<NoteSnapshot | null>
+  reindexNote: (path: string) => Promise<void>
+}
+
+class HttpError extends Error {
+  status: number
+  payload: Record<string, unknown>
+
+  constructor(status: number, payload: Record<string, unknown>) {
+    super(payload.error as string)
+    this.status = status
+    this.payload = payload
+  }
+}
+
+function computeSha256(content: string): string {
+  const hash = createHash('sha256').update(Buffer.from(content, 'utf8')).digest('hex')
+  return `sha256:${hash}`
+}
+
+function splitLines(content: string): { lines: string[], trailingNewline: boolean } {
+  if (content.length === 0) {
+    return { lines: [], trailingNewline: false }
+  }
+  const trailingNewline = content.endsWith('\n')
+  const lines = content.split('\n')
+  if (trailingNewline) {
+    lines.pop()
+  }
+  return { lines, trailingNewline }
+}
+
+function splitReplacement(replacement: string): string[] {
+  if (replacement.length === 0) {
+    return []
+  }
+  const lines = replacement.split('\n')
+  if (replacement.endsWith('\n')) {
+    lines.pop()
+  }
+  return lines
+}
+
+function joinLines(lines: string[], trailingNewline: boolean): string {
+  const content = lines.join('\n')
+  if (trailingNewline && lines.length > 0) {
+    return `${content}\n`
+  }
+  return content
+}
+
+function parseLineNumber(value: unknown, key: string): number {
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    throw new HttpError(400, { error: `invalid_${key}` })
+  }
+  return value
+}
+
+function parseRequiredString(value: unknown, key: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new HttpError(400, { error: `invalid_${key}` })
+  }
+  return value
+}
+
+function parseStringField(value: unknown, key: string): string {
+  if (typeof value !== 'string') {
+    throw new HttpError(400, { error: `invalid_${key}` })
+  }
+  return value
+}
+
+function parseMarkdownPath(value: unknown): string {
+  const path = parseRequiredString(value, 'path')
+  if (!path.endsWith('.md')) {
+    throw new HttpError(400, { error: 'invalid_path' })
+  }
+  return path
+}
+
+function parseJsonBody(rawBody: string): Record<string, unknown> {
+  try {
+    const body = JSON.parse(rawBody)
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      throw new HttpError(400, { error: 'invalid_body' })
+    }
+    return body as Record<string, unknown>
+  } catch (error) {
+    if (error instanceof HttpError) {
+      throw error
+    }
+    throw new HttpError(400, { error: 'invalid_json' })
+  }
+}
 
 export class HttpSearchServer {
   private server: any
   private index: NoteIndex
   private ollamaUrl: string
   private model: string
+  private noteAccess: ServerNoteAccess
 
-  constructor(index: NoteIndex, ollamaUrl: string, model: string) {
+  constructor(index: NoteIndex, ollamaUrl: string, model: string, noteAccess: ServerNoteAccess) {
     this.index = index
     this.ollamaUrl = ollamaUrl
     this.model = model
+    this.noteAccess = noteAccess
   }
 
   public updateConfig(ollamaUrl: string, model: string) {
@@ -21,9 +127,81 @@ export class HttpSearchServer {
     this.model = model
   }
 
+  private async handleRead(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const path = parseMarkdownPath(body.path)
+    const snapshot = await this.noteAccess.readNote(path)
+    if (!snapshot) {
+      throw new HttpError(404, { error: 'note_not_found', path })
+    }
+
+    const { lines } = splitLines(snapshot.content)
+    return {
+      path: snapshot.path,
+      content: snapshot.content,
+      line_count: lines.length,
+      content_hash: computeSha256(snapshot.content),
+      mtime: snapshot.mtime,
+    }
+  }
+
+  private async handlePatchLines(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const path = parseMarkdownPath(body.path)
+    const startLine = parseLineNumber(body.start_line, 'start_line')
+    const endLine = parseLineNumber(body.end_line, 'end_line')
+    const replacement = parseStringField(body.replacement, 'replacement')
+    const expectedHash = parseRequiredString(body.expected_hash, 'expected_hash')
+
+    if (startLine < 1 || endLine < startLine) {
+      throw new HttpError(400, { error: 'invalid_line_range' })
+    }
+
+    const currentSnapshot = await this.noteAccess.readNote(path)
+    if (!currentSnapshot) {
+      throw new HttpError(404, { error: 'note_not_found', path })
+    }
+
+    const currentHash = computeSha256(currentSnapshot.content)
+    if (currentHash !== expectedHash) {
+      throw new HttpError(409, {
+        error: 'hash_mismatch',
+        path,
+        expected_hash: expectedHash,
+        current_hash: currentHash,
+        mtime: currentSnapshot.mtime,
+      })
+    }
+
+    const { lines, trailingNewline } = splitLines(currentSnapshot.content)
+    if (endLine > lines.length) {
+      throw new HttpError(400, { error: 'line_range_out_of_bounds' })
+    }
+
+    const replacementLines = splitReplacement(replacement)
+    const updatedLines = [
+      ...lines.slice(0, startLine - 1),
+      ...replacementLines,
+      ...lines.slice(endLine),
+    ]
+    const updatedContent = joinLines(updatedLines, trailingNewline)
+
+    const writeResult = await this.noteAccess.writeNote(path, updatedContent)
+    if (!writeResult) {
+      throw new HttpError(404, { error: 'note_not_found', path })
+    }
+    await this.noteAccess.reindexNote(path)
+
+    return {
+      path: writeResult.path,
+      applied_start_line: startLine,
+      applied_end_line: endLine,
+      new_hash: computeSha256(updatedContent),
+      new_line_count: updatedLines.length,
+      mtime: writeResult.mtime,
+    }
+  }
+
   public start(port: number) {
     this.server = createServer(async (req, res) => {
-      // CORS
       res.setHeader('Access-Control-Allow-Origin', '*')
       res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -41,28 +219,44 @@ export class HttpSearchServer {
         })
         req.on('end', async () => {
           try {
-            const data = JSON.parse(body)
+            const data = parseJsonBody(body)
             if (req.url === '/embed') {
-              const vector = await embedText(this.ollamaUrl, this.model, data.text)
+              const text = parseRequiredString(data.text, 'text')
+              const vector = await embedText(this.ollamaUrl, this.model, text)
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ vector }))
             } else if (req.url === '/search/vector') {
-              const results = this.index.search(data.vector, data.allowlist, data.top_n)
+              const results = this.index.search(data.vector as number[], data.allowlist as string[] | undefined, data.top_n as number | undefined)
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ results }))
             } else if (req.url === '/search/text') {
-              const vector = await embedText(this.ollamaUrl, this.model, data.text)
-              const results = this.index.search(vector, data.allowlist, data.top_n)
+              const text = parseRequiredString(data.text, 'text')
+              const vector = await embedText(this.ollamaUrl, this.model, text)
+              const results = this.index.search(vector, data.allowlist as string[] | undefined, data.top_n as number | undefined)
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ results }))
+            } else if (req.url === '/notes/read') {
+              const note = await this.handleRead(data)
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify(note))
+            } else if (req.url === '/notes/patch-lines') {
+              const patched = await this.handlePatchLines(data)
+              res.writeHead(200, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify(patched))
             } else {
               res.writeHead(404)
               res.end()
             }
-          } catch (e) {
-            const error = e instanceof Error ? e.message : String(e)
+          } catch (error) {
+            if (error instanceof HttpError) {
+              res.writeHead(error.status, { 'Content-Type': 'application/json' })
+              res.end(JSON.stringify(error.payload))
+              return
+            }
+
+            const message = error instanceof Error ? error.message : String(error)
             res.writeHead(500, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ error }))
+            res.end(JSON.stringify({ error: message }))
           }
         })
       } else {

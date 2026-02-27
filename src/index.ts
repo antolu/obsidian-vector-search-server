@@ -1,5 +1,3 @@
-import { requestUrl } from 'obsidian'
-
 export interface IndexEntry {
   path: string
   vector: number[]

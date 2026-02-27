@@ -11,9 +11,9 @@ import { DEFAULT_SETTINGS, type VectorSearchSettings } from './settings'
 import { VectorSearchSettingsTab } from './settingsTab'
 
 export default class VectorSearchPlugin extends Plugin {
-  settings: VectorSearchSettings
-  index: NoteIndex
-  server: HttpSearchServer
+  settings!: VectorSearchSettings
+  index!: NoteIndex
+  server!: HttpSearchServer
 
   async onload() {
     await this.loadSettings()
@@ -24,18 +24,21 @@ export default class VectorSearchPlugin extends Plugin {
     this.server = new HttpSearchServer(
       this.index,
       this.settings.ollamaUrl,
-      this.settings.embeddingModel
+      this.settings.embeddingModel,
+      {
+        readNote: async (path: string) => this.readNote(path),
+        writeNote: async (path: string, content: string) => this.writeNote(path, content),
+        reindexNote: async (path: string) => this.reindexNote(path),
+      }
     )
     this.server.start(this.settings.serverPort)
 
     this.addSettingTab(new VectorSearchSettingsTab(this.app, this))
 
-    // Index on boot (incremental)
     this.app.workspace.onLayoutReady(() => {
       this.incrementalIndex()
     })
 
-    // Listen for file changes
     this.registerEvent(
       this.app.vault.on('modify', async (file) => {
         if (file instanceof TFile && file.extension === 'md') {
@@ -103,6 +106,57 @@ export default class VectorSearchPlugin extends Plugin {
     return `${this.manifest.dir}/index.json`
   }
 
+  private getMarkdownFile(path: string): TFile | null {
+    const abstractFile = this.app.vault.getAbstractFileByPath(path)
+    if (!(abstractFile instanceof TFile) || abstractFile.extension !== 'md') {
+      return null
+    }
+    return abstractFile
+  }
+
+  async readNote(path: string): Promise<{ path: string, content: string, mtime: number } | null> {
+    const file = this.getMarkdownFile(path)
+    if (!file) {
+      return null
+    }
+
+    const content = await this.app.vault.read(file)
+    return {
+      path: file.path,
+      content,
+      mtime: file.stat.mtime,
+    }
+  }
+
+  async writeNote(path: string, content: string): Promise<{ path: string, content: string, mtime: number } | null> {
+    const file = this.getMarkdownFile(path)
+    if (!file) {
+      return null
+    }
+
+    await this.app.vault.modify(file, content)
+    const refreshed = this.getMarkdownFile(path)
+    if (!refreshed) {
+      return null
+    }
+
+    return {
+      path: refreshed.path,
+      content,
+      mtime: refreshed.stat.mtime,
+    }
+  }
+
+  async reindexNote(path: string): Promise<void> {
+    const file = this.getMarkdownFile(path)
+    if (!file) {
+      return
+    }
+
+    await this.indexFile(file)
+    await this.saveIndex()
+  }
+
   async indexFile(file: TFile) {
     if (!this.settings.embeddingModel) return
 
@@ -148,7 +202,6 @@ export default class VectorSearchPlugin extends Plugin {
       await this.indexFile(file)
       done++
       if (done % 10 === 0) {
-          // Just a minor logging, Obsidian Notice isn't great for frequent updates
           console.log(`Indexed ${done}/${toIndex.length}`)
       }
     }
@@ -164,9 +217,9 @@ export default class VectorSearchPlugin extends Plugin {
 
     this.index.clear()
     const files = this.app.vault.getMarkdownFiles()
-    
+
     new Notice(`Vector Search: Full re-index started (${files.length} files)...`)
-    
+
     let done = 0
     for (const file of files) {
       await this.indexFile(file)
