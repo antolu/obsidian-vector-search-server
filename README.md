@@ -30,32 +30,74 @@ A local semantic search engine for your Obsidian vault. This plugin embeds your 
 
 ## 🚀 HTTP API
 
-The plugin starts a local server on the configured port.
+The plugin starts a local server on the configured port. All endpoints are `POST` only.
 
 ### `POST /embed`
-Generates an embedding for the provided text.
-```json
-{ "text": "Hello world" }
-```
+Generates an embedding for the provided text using the configured Ollama model.
+- **Request**: `{ "text": string }`
+- **Response**: `{ "vector": number[] }`
 
 ### `POST /search/text`
-Performs a semantic search for the given query.
-```json
-{
-  "text": "milano to ancona",
-  "top_n": 5,
-  "allowlist": ["Travel/Italy.md", "Notes/Trip.md"]
-}
-```
+Performs a semantic search for the given query text.
+- **Request**:
+  ```json
+  {
+    "text": string,
+    "top_n"?: number,
+    "allowlist"?: string[]
+  }
+  ```
+- **Response**: `{ "results": { "path": string, "score": number }[] }`
 
 ### `POST /search/vector`
 Performs a semantic search using a pre-computed vector.
-```json
-{
-  "vector": [1.2, -0.5, 0.0],
-  "top_n": 10
-}
-```
+- **Request**:
+  ```json
+  {
+    "vector": number[],
+    "top_n"?: number,
+    "allowlist"?: string[]
+  }
+  ```
+- **Response**: Same as `/search/text`.
+
+### `POST /notes/read`
+Reads a note's content and metadata.
+- **Request**: `{ "path": string }` (Path must end in `.md`)
+- **Response**:
+  ```json
+  {
+    "path": string,
+    "content": string,
+    "line_count": number,
+    "content_hash": string,
+    "mtime": number
+  }
+  ```
+
+### `POST /notes/patch-lines`
+Performs atomic line-based edits on a note. Fails if the `expected_hash` doesn't match the current file hash (Sha256).
+- **Request**:
+  ```json
+  {
+    "path": string,
+    "start_line": number,
+    "end_line": number,
+    "replacement": string,
+    "expected_hash": string
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "path": string,
+    "applied_start_line": number,
+    "applied_end_line": number,
+    "new_hash": string,
+    "new_line_count": number,
+    "mtime": number
+  }
+  ```
 
 ## 💻 How to develop
 
