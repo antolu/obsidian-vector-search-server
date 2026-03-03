@@ -29,15 +29,25 @@ jobs:
 
       - name: Get release version
         id: version
-        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+        run: |
+          TAG=${GITHUB_REF/refs\/tags\//}
+          VERSION=${TAG#v}
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Package plugin
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          mkdir -p obsidian-vector-search-server
+          cp dist/main.js obsidian-vector-search-server/
+          cp dist/manifest.json obsidian-vector-search-server/
+          zip -r "obsidian-vector-search-server-${VERSION}.zip" obsidian-vector-search-server/
 
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          tag="${{ steps.version.outputs.VERSION }}"
-
-          gh release create "${{ steps.version.outputs.VERSION }}" \
-            --title="${{ steps.version.outputs.VERSION }}" \
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          gh release create "v${VERSION}" \
+            --title="v${VERSION}" \
             --draft \
-            dist/main.js dist/manifest.json
+            "obsidian-vector-search-server-${VERSION}.zip"
