@@ -1,7 +1,8 @@
 import type { NoteIndex } from './index'
 
-import { createHash } from 'crypto'
-import { createServer } from 'http'
+import { Buffer } from 'node:buffer'
+import { createHash } from 'node:crypto'
+import { createServer } from 'node:http'
 
 import { embedText } from './ollama'
 
@@ -100,7 +101,8 @@ function parseJsonBody(rawBody: string): Record<string, unknown> {
       throw new HttpError(400, { error: 'invalid_body' })
     }
     return body as Record<string, unknown>
-  } catch (error) {
+  }
+  catch (error) {
     if (error instanceof HttpError) {
       throw error
     }
@@ -214,7 +216,7 @@ export class HttpSearchServer {
 
       if (req.method === 'POST') {
         let body = ''
-        req.on('data', chunk => {
+        req.on('data', (chunk) => {
           body += chunk.toString()
         })
         req.on('end', async () => {
@@ -225,29 +227,35 @@ export class HttpSearchServer {
               const vector = await embedText(this.ollamaUrl, this.model, text)
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ vector }))
-            } else if (req.url === '/search/vector') {
+            }
+            else if (req.url === '/search/vector') {
               const results = this.index.search(data.vector as number[], data.allowlist as string[] | undefined, data.top_n as number | undefined)
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ results }))
-            } else if (req.url === '/search/text') {
+            }
+            else if (req.url === '/search/text') {
               const text = parseRequiredString(data.text, 'text')
               const vector = await embedText(this.ollamaUrl, this.model, text)
               const results = this.index.search(vector, data.allowlist as string[] | undefined, data.top_n as number | undefined)
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ results }))
-            } else if (req.url === '/notes/read') {
+            }
+            else if (req.url === '/notes/read') {
               const note = await this.handleRead(data)
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify(note))
-            } else if (req.url === '/notes/patch-lines') {
+            }
+            else if (req.url === '/notes/patch-lines') {
               const patched = await this.handlePatchLines(data)
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify(patched))
-            } else {
+            }
+            else {
               res.writeHead(404)
               res.end()
             }
-          } catch (error) {
+          }
+          catch (error) {
             if (error instanceof HttpError) {
               res.writeHead(error.status, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify(error.payload))
@@ -259,7 +267,8 @@ export class HttpSearchServer {
             res.end(JSON.stringify({ error: message }))
           }
         })
-      } else {
+      }
+      else {
         res.writeHead(405)
         res.end()
       }

@@ -29,7 +29,7 @@ export class NoteIndex {
     return Array.from(this.entries.values())
   }
 
-  public search(queryVector: number[], allowlist?: string[], topN: number = 10): { path: string; score: number }[] {
+  public search(queryVector: number[], allowlist?: string[], topN: number = 10): { path: string, score: number }[] {
     let candidates = this.getAll()
     if (allowlist && allowlist.length > 0) {
       const set = new Set(allowlist)
@@ -51,13 +51,14 @@ export class NoteIndex {
     let mag1 = 0
     let mag2 = 0
     for (let i = 0; i < v1.length; i++) {
-        dotProduct += v1[i] * v2[i]
-        mag1 += v1[i] * v1[i]
-        mag2 += v2[i] * v2[i]
+      dotProduct += v1[i] * v2[i]
+      mag1 += v1[i] * v1[i]
+      mag2 += v2[i] * v2[i]
     }
     mag1 = Math.sqrt(mag1)
     mag2 = Math.sqrt(mag2)
-    if (mag1 === 0 || mag2 === 0) return 0
+    if (mag1 === 0 || mag2 === 0)
+      return 0
     return dotProduct / (mag1 * mag2)
   }
 
@@ -72,7 +73,8 @@ export class NoteIndex {
       for (const entry of data) {
         this.entries.set(entry.path, entry)
       }
-    } catch (e) {
+    }
+    catch (e) {
       console.error('Failed to deserialize index', e)
     }
   }

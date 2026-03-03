@@ -1,13 +1,11 @@
+import type { VectorSearchSettings } from './settings'
+
 import { Notice, Plugin, TFile } from 'obsidian'
 
 import { NoteIndex } from './index'
-
 import { embedText } from './ollama'
-
 import { HttpSearchServer } from './server'
-
-import { DEFAULT_SETTINGS, type VectorSearchSettings } from './settings'
-
+import { DEFAULT_SETTINGS } from './settings'
 import { VectorSearchSettingsTab } from './settingsTab'
 
 export default class VectorSearchPlugin extends Plugin {
@@ -29,7 +27,7 @@ export default class VectorSearchPlugin extends Plugin {
         readNote: async (path: string) => this.readNote(path),
         writeNote: async (path: string, content: string) => this.writeNote(path, content),
         reindexNote: async (path: string) => this.reindexNote(path),
-      }
+      },
     )
     this.server.start(this.settings.serverPort)
 
@@ -45,7 +43,7 @@ export default class VectorSearchPlugin extends Plugin {
           await this.indexFile(file)
           await this.saveIndex()
         }
-      })
+      }),
     )
 
     this.registerEvent(
@@ -54,7 +52,7 @@ export default class VectorSearchPlugin extends Plugin {
           await this.indexFile(file)
           await this.saveIndex()
         }
-      })
+      }),
     )
 
     this.registerEvent(
@@ -63,7 +61,7 @@ export default class VectorSearchPlugin extends Plugin {
           this.index.delete(file.path)
           await this.saveIndex()
         }
-      })
+      }),
     )
 
     this.registerEvent(
@@ -73,7 +71,7 @@ export default class VectorSearchPlugin extends Plugin {
           await this.indexFile(file)
           await this.saveIndex()
         }
-      })
+      }),
     )
   }
 
@@ -158,66 +156,75 @@ export default class VectorSearchPlugin extends Plugin {
   }
 
   async indexFile(file: TFile) {
-    if (!this.settings.embeddingModel) return
+    if (!this.settings.embeddingModel)
+      return
 
     const content = await this.app.vault.read(file)
     if (content.length < this.settings.minChars) {
-        this.index.delete(file.path)
-        return
+      this.index.delete(file.path)
+      return
     }
 
     try {
       const vector = await embedText(
         this.settings.ollamaUrl,
         this.settings.embeddingModel,
-        content
+        content,
       )
       this.index.set(file.path, {
         path: file.path,
         vector,
         mtime: file.stat.mtime,
       })
-    } catch (e) {
+    }
+    catch (e) {
       console.error(`Failed to embed ${file.path}`, e)
     }
   }
 
   async incrementalIndex() {
     if (!this.settings.embeddingModel) {
-        new Notice('Vector Search: Select an embedding model in settings to enable search.')
-        return
+      // eslint-disable-next-line no-new
+      new Notice('Vector Search: Select an embedding model in settings to enable search.')
+      return
     }
 
     const files = this.app.vault.getMarkdownFiles()
-    const toIndex = files.filter(f => {
+    const toIndex = files.filter((f) => {
       const entry = this.index.get(f.path)
       return !entry || entry.mtime < f.stat.mtime
     })
 
-    if (toIndex.length === 0) return
+    if (toIndex.length === 0)
+      return
 
+    // eslint-disable-next-line no-new
     new Notice(`Vector Search: Updating index for ${toIndex.length} files...`)
     let done = 0
     for (const file of toIndex) {
       await this.indexFile(file)
       done++
       if (done % 10 === 0) {
-          console.log(`Indexed ${done}/${toIndex.length}`)
+        // eslint-disable-next-line no-console
+        console.log(`Indexed ${done}/${toIndex.length}`)
       }
     }
     await this.saveIndex()
+    // eslint-disable-next-line no-new
     new Notice('Vector Search: Index update complete.')
   }
 
   async reindexAll() {
     if (!this.settings.embeddingModel) {
-        new Notice('Vector Search: Select a model first.')
-        return
+      // eslint-disable-next-line no-new
+      new Notice('Vector Search: Select a model first.')
+      return
     }
 
     this.index.clear()
     const files = this.app.vault.getMarkdownFiles()
 
+    // eslint-disable-next-line no-new
     new Notice(`Vector Search: Full re-index started (${files.length} files)...`)
 
     let done = 0
@@ -225,11 +232,13 @@ export default class VectorSearchPlugin extends Plugin {
       await this.indexFile(file)
       done++
       if (done % 10 === 0) {
+        // eslint-disable-next-line no-console
         console.log(`Re-indexing ${done}/${files.length}`)
       }
     }
 
     await this.saveIndex()
+    // eslint-disable-next-line no-new
     new Notice('Vector Search: Full re-index complete.')
   }
 }

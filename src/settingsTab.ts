@@ -1,6 +1,8 @@
+import type { App } from 'obsidian'
+
 import type VectorSearchPlugin from './main'
 
-import { App, PluginSettingTab, Setting } from 'obsidian'
+import { PluginSettingTab, Setting } from 'obsidian'
 
 import { listModels } from './ollama'
 
@@ -34,8 +36,8 @@ export class VectorSearchSettingsTab extends PluginSettingTab {
       .setDesc('Select the model to use for embeddings')
 
     listModels(this.plugin.settings.ollamaUrl)
-      .then(models => {
-        modelSetting.addDropdown(dropdown => {
+      .then((models) => {
+        modelSetting.addDropdown((dropdown) => {
           dropdown.addOption('', 'Select a model')
           models.forEach(model => dropdown.addOption(model, model))
           dropdown.setValue(this.plugin.settings.embeddingModel)
@@ -43,22 +45,22 @@ export class VectorSearchSettingsTab extends PluginSettingTab {
             this.plugin.settings.embeddingModel = value
             await this.plugin.saveSettings()
             this.plugin.server.updateConfig(this.plugin.settings.ollamaUrl, value)
-            
+
             // Trigger re-index warning/action
             if (value) {
-                new Setting(containerEl)
-                    .setName('Re-index required')
-                    .setDesc('Changing the model requires a full re-index of your vault.')
-                    .addButton(btn => btn
-                        .setButtonText('Re-index All')
-                        .onClick(async () => {
-                            await this.plugin.reindexAll()
-                        }))
+              new Setting(containerEl)
+                .setName('Re-index required')
+                .setDesc('Changing the model requires a full re-index of your vault.')
+                .addButton(btn => btn
+                  .setButtonText('Re-index All')
+                  .onClick(async () => {
+                    await this.plugin.reindexAll()
+                  }))
             }
           })
         })
       })
-      .catch(err => {
+      .catch((_err) => {
         modelSetting.setDesc('Error connecting to Ollama. Make sure it is running.')
       })
 
@@ -93,13 +95,13 @@ export class VectorSearchSettingsTab extends PluginSettingTab {
         .onClick(() => this.display()))
 
     new Setting(containerEl)
-        .setName('Force Re-index')
-        .setDesc('Trigger a full re-index of the vault')
-        .addButton(btn => btn
-            .setButtonText('Re-index All Now')
-            .setWarning()
-            .onClick(async () => {
-                await this.plugin.reindexAll()
-            }))
+      .setName('Force Re-index')
+      .setDesc('Trigger a full re-index of the vault')
+      .addButton(btn => btn
+        .setButtonText('Re-index All Now')
+        .setWarning()
+        .onClick(async () => {
+          await this.plugin.reindexAll()
+        }))
   }
 }

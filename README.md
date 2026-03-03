@@ -52,7 +52,7 @@ Performs a semantic search for the given query.
 Performs a semantic search using a pre-computed vector.
 ```json
 {
-  "vector": [1.2, -0.5, ...],
+  "vector": [1.2, -0.5, 0.0],
   "top_n": 10
 }
 ```
