@@ -156,6 +156,8 @@ jobs:
           prerelease: false
 
       - name: Upload zip artifact
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
