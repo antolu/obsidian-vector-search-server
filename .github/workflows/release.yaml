@@ -150,16 +150,17 @@ jobs:
         run: |
           set -euo pipefail
           TAG_NAME=${GITHUB_REF#refs/tags/}
-          # Build body from generated changelog output
-          BODY="${{ steps.gen_changelog.outputs.release_notes }}"
+          # Build body from generated changelog output and export to env for python
+          RELEASE_BODY="${{ steps.gen_changelog.outputs.release_notes }}"
+          export RELEASE_BODY
 
-          # Create JSON payload. Use python to avoid jq dependency issues.
+          # Create JSON payload using python and environment variables (avoids jq)
           PAYLOAD=$(python - <<PY
-import json,sys
-payload={
-  'tag_name': '${TAG_NAME}',
-  'name': '${TAG_NAME}',
-  'body': '''%s''',
+import json,os
+payload = {
+  'tag_name': os.environ['TAG_NAME'] if 'TAG_NAME' in os.environ else '${TAG_NAME}',
+  'name': os.environ.get('TAG_NAME', '${TAG_NAME}'),
+  'body': os.environ.get('RELEASE_BODY', ''),
   'draft': True,
   'prerelease': False
 }
@@ -186,19 +187,12 @@ PY
           echo "Checking for $F"
           ls -la "$F"
 
-      - name: Upload zip via REST
+      - name: Create GitHub Release and upload zip (softprops)
+        uses: softprops/action-gh-release@v1
+        with:
+          files: obsidian-vector-search-server-${{ steps.version.outputs.VERSION }}.zip
+          name: ${{ github.ref_name }}
+          body: ${{ steps.gen_changelog.outputs.release_notes }}
+          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          UPLOAD_URL='${{ steps.create_release.outputs.upload_url }}'
-          # strip the template suffix like "{?name,label}"
-          UPLOAD_BASE=${UPLOAD_URL%%\{*}
-          F=obsidian-vector-search-server-${{ steps.version.outputs.VERSION }}.zip
-          echo "Uploading $F to $UPLOAD_BASE"
-          curl -s -X POST \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Content-Type: application/zip" \
-            --data-binary @"$F" \
-            "$UPLOAD_BASE?name=$(basename "$F")" \
-          | python -c "import sys,json;print(json.load(sys.stdin))"
