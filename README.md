@@ -30,7 +30,7 @@ A local semantic search engine for your Obsidian vault. This plugin embeds your 
 
 ## 🚀 HTTP API
 
-The plugin starts a local server on the configured port. All endpoints are `POST` only.
+The plugin starts a local server on the configured port.
 
 ### `POST /embed`
 Generates an embedding for the provided text using the configured Ollama model.
@@ -61,9 +61,9 @@ Performs a semantic search using a pre-computed vector.
   ```
 - **Response**: Same as `/search/text`.
 
-### `POST /notes/read`
+### `GET /notes/read?path=...`
 Reads a note's content and metadata.
-- **Request**: `{ "path": string }` (Path must end in `.md`)
+- **Query Parameters**: `path` (URL-encoded vault-relative path, e.g., `Notes/My%20Note.md`)
 - **Response**:
   ```json
   {
@@ -75,7 +75,7 @@ Reads a note's content and metadata.
   }
   ```
 
-### `POST /notes/patch-lines`
+### `PATCH /notes/patch-lines`
 Performs atomic line-based edits on a note. Fails if the `expected_hash` doesn't match the current file hash (Sha256).
 - **Request**:
   ```json

@@ -205,7 +205,7 @@ export class HttpSearchServer {
   public start(port: number) {
     this.server = createServer(async (req, res) => {
       res.setHeader('Access-Control-Allow-Origin', '*')
-      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS')
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
       if (req.method === 'OPTIONS') {
@@ -214,7 +214,27 @@ export class HttpSearchServer {
         return
       }
 
-      if (req.method === 'POST') {
+      const url = new URL(req.url || '', `http://${req.headers.host}`)
+      const pathname = url.pathname
+
+      if (req.method === 'GET') {
+        try {
+          if (pathname === '/notes/read') {
+            const data = { path: url.searchParams.get('path') }
+            const note = await this.handleRead(data)
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify(note))
+          }
+          else {
+            res.writeHead(404)
+            res.end()
+          }
+        }
+        catch (error) {
+          this.handleError(res, error)
+        }
+      }
+      else if (req.method === 'POST' || req.method === 'PATCH') {
         let body = ''
         req.on('data', (chunk) => {
           body += chunk.toString()
@@ -222,30 +242,25 @@ export class HttpSearchServer {
         req.on('end', async () => {
           try {
             const data = parseJsonBody(body)
-            if (req.url === '/embed') {
+            if (req.method === 'POST' && pathname === '/embed') {
               const text = parseRequiredString(data.text, 'text')
               const vector = await embedText(this.ollamaUrl, this.model, text)
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ vector }))
             }
-            else if (req.url === '/search/vector') {
+            else if (req.method === 'POST' && pathname === '/search/vector') {
               const results = this.index.search(data.vector as number[], data.allowlist as string[] | undefined, data.top_n as number | undefined)
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ results }))
             }
-            else if (req.url === '/search/text') {
+            else if (req.method === 'POST' && pathname === '/search/text') {
               const text = parseRequiredString(data.text, 'text')
               const vector = await embedText(this.ollamaUrl, this.model, text)
               const results = this.index.search(vector, data.allowlist as string[] | undefined, data.top_n as number | undefined)
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify({ results }))
             }
-            else if (req.url === '/notes/read') {
-              const note = await this.handleRead(data)
-              res.writeHead(200, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify(note))
-            }
-            else if (req.url === '/notes/patch-lines') {
+            else if (req.method === 'PATCH' && pathname === '/notes/patch-lines') {
               const patched = await this.handlePatchLines(data)
               res.writeHead(200, { 'Content-Type': 'application/json' })
               res.end(JSON.stringify(patched))
@@ -256,15 +271,7 @@ export class HttpSearchServer {
             }
           }
           catch (error) {
-            if (error instanceof HttpError) {
-              res.writeHead(error.status, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify(error.payload))
-              return
-            }
-
-            const message = error instanceof Error ? error.message : String(error)
-            res.writeHead(500, { 'Content-Type': 'application/json' })
-            res.end(JSON.stringify({ error: message }))
+            this.handleError(res, error)
           }
         })
       }
@@ -275,6 +282,18 @@ export class HttpSearchServer {
     })
 
     this.server.listen(port, '127.0.0.1')
+  }
+
+  private handleError(res: any, error: unknown) {
+    if (error instanceof HttpError) {
+      res.writeHead(error.status, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(error.payload))
+      return
+    }
+
+    const message = error instanceof Error ? error.message : String(error)
+    res.writeHead(500, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: message }))
   }
 
   public stop() {
