@@ -7,10 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      ollama:
-        specifier: ^0.6.3
-        version: 0.6.3
     devDependencies:
       '@antfu/eslint-config':
         specifier: ^5.4.1
@@ -30,6 +26,9 @@ importers:
       obsidian:
         specifier: ^1.10.0
         version: 1.10.0(@codemirror/state@6.5.2)(@codemirror/view@6.38.5)
+      ollama:
+        specifier: ^0.6.3
+        version: 0.6.3
       taze:
         specifier: ^19.7.0
         version: 19.7.0
