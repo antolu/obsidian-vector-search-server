@@ -143,43 +143,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
         shell: bash
 
-      - name: Create GitHub Release (draft) via REST
-        id: create_release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          # Build body from generated changelog output and export to env for python
-          RELEASE_BODY="${{ steps.gen_changelog.outputs.release_notes }}"
-          export RELEASE_BODY
-
-          # Create JSON payload using python and environment variables (avoids jq)
-          PAYLOAD=$(python - <<PY
-import json,os
-payload = {
-  'tag_name': os.environ['TAG_NAME'] if 'TAG_NAME' in os.environ else '${TAG_NAME}',
-  'name': os.environ.get('TAG_NAME', '${TAG_NAME}'),
-  'body': os.environ.get('RELEASE_BODY', ''),
-  'draft': True,
-  'prerelease': False
-}
-print(json.dumps(payload))
-PY
-)
-
-          RESPONSE=$(curl -s -X POST \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -H "Content-Type: application/json" \
-            -d "$PAYLOAD" \
-            "https://api.github.com/repos/${{ github.repository }}/releases")
-
-          echo "$RESPONSE" > release_response.json
-          UPLOAD_URL=$(python -c "import sys,json;print(json.load(open('release_response.json'))['upload_url'])")
-          RELEASE_ID=$(python -c "import sys,json;print(json.load(open('release_response.json'))['id'])")
-          echo "upload_url=$UPLOAD_URL" >> $GITHUB_OUTPUT
-          echo "release_id=$RELEASE_ID" >> $GITHUB_OUTPUT
+      # REST create_release step removed: softprops action will create/update the release
 
       - name: Verify artifact exists
         run: |
@@ -188,7 +152,7 @@ PY
           ls -la "$F"
 
       - name: Create GitHub Release and upload zip (softprops)
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: obsidian-vector-search-server-${{ steps.version.outputs.VERSION }}.zip
           name: ${{ github.ref_name }}
