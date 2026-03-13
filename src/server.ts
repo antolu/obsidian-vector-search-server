@@ -12,10 +12,24 @@ interface NoteSnapshot {
   mtime: number
 }
 
+interface SearchMatch {
+  match: { start: number, end: number, source: string }
+  context: string
+}
+
+interface SearchResult {
+  filename: string
+  score: number
+  matches: SearchMatch[]
+}
+
 interface ServerNoteAccess {
   readNote: (path: string) => Promise<NoteSnapshot | null>
   writeNote: (path: string, content: string) => Promise<NoteSnapshot | null>
   reindexNote: (path: string) => Promise<void>
+  openNote: (path: string) => Promise<boolean>
+  executeCommand: (commandId: string) => Promise<boolean>
+  searchSimple: (query: string, contextLength: number) => Promise<SearchResult[]>
 }
 
 class HttpError extends Error {
@@ -116,12 +130,14 @@ export class HttpSearchServer {
   private ollamaUrl: string
   private model: string
   private noteAccess: ServerNoteAccess
+  private version: string
 
-  constructor(index: NoteIndex, ollamaUrl: string, model: string, noteAccess: ServerNoteAccess) {
+  constructor(index: NoteIndex, ollamaUrl: string, model: string, noteAccess: ServerNoteAccess, version: string) {
     this.index = index
     this.ollamaUrl = ollamaUrl
     this.model = model
     this.noteAccess = noteAccess
+    this.version = version
   }
 
   public updateConfig(ollamaUrl: string, model: string) {
@@ -219,7 +235,11 @@ export class HttpSearchServer {
 
       if (req.method === 'GET') {
         try {
-          if (pathname === '/notes/read') {
+          if (pathname === '/health') {
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ status: 'ok', version: this.version }))
+          }
+          else if (pathname === '/notes/read') {
             const data = { path: url.searchParams.get('path') }
             const note = await this.handleRead(data)
             res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -241,33 +261,72 @@ export class HttpSearchServer {
         })
         req.on('end', async () => {
           try {
-            const data = parseJsonBody(body)
-            if (req.method === 'POST' && pathname === '/embed') {
-              const text = parseRequiredString(data.text, 'text')
-              const vector = await embedText(this.ollamaUrl, this.model, text)
+            if (req.method === 'POST' && pathname === '/search/simple/') {
+              const query = url.searchParams.get('query') || ''
+              if (!query) {
+                res.writeHead(400, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ error: 'query parameter required' }))
+                return
+              }
+              const contextLengthRaw = Number.parseInt(url.searchParams.get('contextLength') || '100', 10)
+              const contextLength = Number.isNaN(contextLengthRaw) ? 100 : contextLengthRaw
+              const results = await this.noteAccess.searchSimple(query, contextLength)
               res.writeHead(200, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({ vector }))
+              res.end(JSON.stringify(results))
             }
-            else if (req.method === 'POST' && pathname === '/search/vector') {
-              const results = this.index.search(data.vector as number[], data.allowlist as string[] | undefined, data.top_n as number | undefined)
-              res.writeHead(200, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({ results }))
+            else if (req.method === 'POST' && /^\/open\//.test(pathname)) {
+              const notePath = decodeURIComponent(pathname.slice('/open/'.length))
+              const opened = await this.noteAccess.openNote(notePath)
+              if (opened) {
+                res.writeHead(204)
+                res.end()
+              }
+              else {
+                res.writeHead(404, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ error: 'note_not_found' }))
+              }
             }
-            else if (req.method === 'POST' && pathname === '/search/text') {
-              const text = parseRequiredString(data.text, 'text')
-              const vector = await embedText(this.ollamaUrl, this.model, text)
-              const results = this.index.search(vector, data.allowlist as string[] | undefined, data.top_n as number | undefined)
-              res.writeHead(200, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify({ results }))
-            }
-            else if (req.method === 'PATCH' && pathname === '/notes/patch-lines') {
-              const patched = await this.handlePatchLines(data)
-              res.writeHead(200, { 'Content-Type': 'application/json' })
-              res.end(JSON.stringify(patched))
+            else if (req.method === 'POST' && /^\/commands\//.test(pathname)) {
+              const commandId = decodeURIComponent(pathname.slice('/commands/'.length))
+              const executed = await this.noteAccess.executeCommand(commandId)
+              if (executed) {
+                res.writeHead(204)
+                res.end()
+              }
+              else {
+                res.writeHead(404, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ error: 'command_not_found' }))
+              }
             }
             else {
-              res.writeHead(404)
-              res.end()
+              const data = parseJsonBody(body)
+              if (req.method === 'POST' && pathname === '/embed') {
+                const text = parseRequiredString(data.text, 'text')
+                const vector = await embedText(this.ollamaUrl, this.model, text)
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ vector }))
+              }
+              else if (req.method === 'POST' && pathname === '/search/vector') {
+                const results = this.index.search(data.vector as number[], data.allowlist as string[] | undefined, data.top_n as number | undefined)
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ results }))
+              }
+              else if (req.method === 'POST' && pathname === '/search/text') {
+                const text = parseRequiredString(data.text, 'text')
+                const vector = await embedText(this.ollamaUrl, this.model, text)
+                const results = this.index.search(vector, data.allowlist as string[] | undefined, data.top_n as number | undefined)
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ results }))
+              }
+              else if (req.method === 'PATCH' && pathname === '/notes/patch-lines') {
+                const patched = await this.handlePatchLines(data)
+                res.writeHead(200, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify(patched))
+              }
+              else {
+                res.writeHead(404)
+                res.end()
+              }
             }
           }
           catch (error) {

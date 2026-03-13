@@ -1,6 +1,6 @@
 import type { VectorSearchSettings } from './settings'
 
-import { Notice, Plugin, TFile } from 'obsidian'
+import { Notice, Plugin, TFile, prepareSimpleSearch } from 'obsidian'
 
 import { NoteIndex } from './index'
 import { embedText } from './ollama'
@@ -19,6 +19,8 @@ export default class VectorSearchPlugin extends Plugin {
     this.index = new NoteIndex()
     await this.loadIndex()
 
+    const port = await this.resolvePort()
+
     this.server = new HttpSearchServer(
       this.index,
       this.settings.ollamaUrl,
@@ -27,9 +29,13 @@ export default class VectorSearchPlugin extends Plugin {
         readNote: async (path: string) => this.readNote(path),
         writeNote: async (path: string, content: string) => this.writeNote(path, content),
         reindexNote: async (path: string) => this.reindexNote(path),
+        openNote: async (path: string) => this.openNote(path),
+        executeCommand: async (commandId: string) => this.executeCommand(commandId),
+        searchSimple: async (query: string, contextLength: number) => this.searchSimple(query, contextLength),
       },
+      this.manifest.version,
     )
-    this.server.start(this.settings.serverPort)
+    this.server.start(port)
 
     this.addSettingTab(new VectorSearchSettingsTab(this.app, this))
 
@@ -153,6 +159,84 @@ export default class VectorSearchPlugin extends Plugin {
 
     await this.indexFile(file)
     await this.saveIndex()
+  }
+
+  async openNote(path: string): Promise<boolean> {
+    const file = this.getMarkdownFile(path)
+    if (!file) {
+      return false
+    }
+    const leaf = this.app.workspace.getLeaf(false)
+    await leaf.openFile(file)
+    return true
+  }
+
+  executeCommand(commandId: string): boolean {
+    return this.app.commands.executeCommandById(commandId)
+  }
+
+  async searchSimple(query: string, contextLength: number): Promise<{ filename: string, score: number, matches: unknown[] }[]> {
+    const results: { filename: string, score: number, matches: unknown[] }[] = []
+    let search: ReturnType<typeof prepareSimpleSearch>
+    try {
+      search = prepareSimpleSearch(query)
+    }
+    catch {
+      return []
+    }
+
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const cachedContents = await this.app.vault.cachedRead(file)
+      const filenamePrefix = `${file.basename}\n\n`
+      const result = search(filenamePrefix + cachedContents)
+
+      if (result) {
+        const positionOffset = filenamePrefix.length
+        const contextMatches: unknown[] = []
+
+        for (const match of result.matches) {
+          if (match[0] < positionOffset && match[1] <= positionOffset) {
+            contextMatches.push({
+              match: { start: match[0], end: Math.min(match[1], file.basename.length), source: 'filename' },
+              context: file.basename,
+            })
+          }
+          else if (match[0] >= positionOffset) {
+            contextMatches.push({
+              match: { start: match[0] - positionOffset, end: match[1] - positionOffset, source: 'content' },
+              context: cachedContents.slice(
+                Math.max(match[0] - positionOffset - contextLength, 0),
+                match[1] - positionOffset + contextLength,
+              ),
+            })
+          }
+        }
+
+        results.push({ filename: file.path, score: result.score, matches: contextMatches })
+      }
+    }
+
+    results.sort((a, b) => (a.score > b.score ? 1 : -1))
+    return results
+  }
+
+  private async resolvePort(): Promise<number> {
+    const configPath = `${this.manifest.dir}/dragonglass.json`
+    try {
+      if (await this.app.vault.adapter.exists(configPath)) {
+        const raw = await this.app.vault.adapter.read(configPath)
+        const cfg = JSON.parse(raw) as { port?: number }
+        if (typeof cfg.port === 'number') {
+          if (this.settings.serverPort === DEFAULT_SETTINGS.serverPort) {
+            return cfg.port
+          }
+        }
+      }
+    }
+    catch {
+      // fall through to settings
+    }
+    return this.settings.serverPort
   }
 
   async indexFile(file: TFile) {
