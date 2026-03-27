@@ -169,7 +169,7 @@ export class HttpSearchServer {
     const replacement = parseStringField(body.replacement, 'replacement')
     const expectedHash = parseRequiredString(body.expected_hash, 'expected_hash')
 
-    if (startLine < 1 || endLine < startLine) {
+    if (startLine < 1 || endLine < startLine - 1) {
       throw new HttpError(400, { error: 'invalid_line_range' })
     }
 
