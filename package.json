@@ -29,15 +29,15 @@
     "nolyfill": "pnpm dlx nolyfill"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^5.4.1",
-    "@codemirror/view": "^6.38.5",
-    "@types/node": "^24.7.0",
-    "builtin-modules": "^5.0.0",
-    "eslint": "^9.37.0",
-    "obsidian": "^1.10.0",
+    "@antfu/eslint-config": "^8.2.0",
+    "@codemirror/view": "^6.41.1",
+    "@types/node": "^25.6.0",
+    "builtin-modules": "^5.1.0",
+    "eslint": "^10.3.0",
+    "obsidian": "^1.12.3",
     "ollama": "^0.6.3",
-    "taze": "^19.7.0",
-    "typescript": "^5.9.3",
+    "taze": "^19.11.0",
+    "typescript": "^6.0.3",
     "unbuild": "^3.6.1"
   }
 }
