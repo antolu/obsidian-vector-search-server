@@ -29,10 +29,10 @@
     "nolyfill": "pnpm dlx nolyfill"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^8.2.0",
-    "@codemirror/view": "^6.41.1",
-    "@types/node": "^25.6.0",
-    "builtin-modules": "^5.1.0",
+    "@antfu/eslint-config": "^9.0.0",
+    "@codemirror/view": "^6.42.1",
+    "@types/node": "^25.7.0",
+    "builtin-modules": "^5.2.0",
     "eslint": "^10.3.0",
     "obsidian": "^1.12.3",
     "ollama": "^0.6.3",
